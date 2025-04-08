@@ -52,13 +52,18 @@ END_MESSAGE_MAP()
 
 CGlimWorkDlg::CGlimWorkDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_GLIMWORK_DIALOG, pParent)
+	, m_dRaius(0)
+	, m_dExternBorder(0)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
+	m_bThreadReady = true;
 }
 
 void CGlimWorkDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
+	DDX_Text(pDX, IDC_EDIT_RADIUS, m_dRaius);
+	DDX_Text(pDX, IDC_EDIT_EXTERN_BORDER, m_dExternBorder);
 }
 
 BEGIN_MESSAGE_MAP(CGlimWorkDlg, CDialogEx)
@@ -68,6 +73,12 @@ BEGIN_MESSAGE_MAP(CGlimWorkDlg, CDialogEx)
 	ON_WM_LBUTTONUP()
 	ON_WM_LBUTTONDOWN()
 	ON_WM_MOUSEMOVE()
+	ON_EN_CHANGE(IDC_EDIT_RADIUS, &CGlimWorkDlg::OnEnChangeEditRadius)
+	ON_EN_CHANGE(IDC_EDIT_EXTERN_BORDER, &CGlimWorkDlg::OnEnChangeEditExternBorder)
+	ON_BN_CLICKED(IDC_BUTTON_RESET, &CGlimWorkDlg::OnBnClickedButtonReset)
+	ON_BN_CLICKED(IDC_BUTTON_RANDOM, &CGlimWorkDlg::OnBnClickedButtonRandom)
+	ON_BN_CLICKED(IDC_BUTTON_RANDOM_THREAD, &CGlimWorkDlg::OnBnClickedButtonRandomThread)
+	ON_MESSAGE(USER_MESSAGE, &CGlimWorkDlg::USER_MESSAGE_FNC)
 END_MESSAGE_MAP()
 
 
@@ -105,10 +116,10 @@ BOOL CGlimWorkDlg::OnInitDialog()
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
 
 	CRect rect;
-	GetDlgItem(IDC_STATIC)->GetWindowRect(&rect);
+	GetDlgItem(IDC_STATIC_PIC)->GetWindowRect(&rect);
 	ScreenToClient(&rect);
 
-	m_Image.Create(rect.Width(), rect.Height(), 8);
+	m_Image.Create(rect.Width(), -rect.Height(), 8);
 
 	static RGBQUAD rgb[256];
 	for (int i = 0; i < 256; i++)
@@ -118,9 +129,14 @@ BOOL CGlimWorkDlg::OnInitDialog()
 	unsigned char* fm = (unsigned char*)m_Image.GetBits();
 
 	// '(전체 줄 - 1) * 한줄의 바이트수'를 빼서 시작 줄의 주소로 변경한다.
-	fm -= m_Image.GetWidth() * (m_Image.GetHeight() - 1) * (8 / 8);
+	//fm -= m_Image.GetWidth() * (m_Image.GetHeight() - 1);
 
 	memset(fm, 0xFF, m_Image.GetWidth() * m_Image.GetHeight());
+
+	// 컨트롤러 값 초기화 으떻게 하던거라?
+	m_dRaius = 20;
+	m_dExternBorder = 5;
+	UpdateData(false);
 
 	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
 }
@@ -164,11 +180,10 @@ void CGlimWorkDlg::OnPaint()
 	else
 	{
 		CRect rect;
-		GetDlgItem(IDC_STATIC)->GetWindowRect(&rect);
-		ScreenToClient(&rect);
+		GetDlgItem(IDC_STATIC_PIC)->GetClientRect(&rect);
 
-		CClientDC DC(this);
-		m_Image.Draw(DC, rect);		
+		CClientDC DC(GetDlgItem(IDC_STATIC_PIC));
+		m_Image.Draw(DC, rect);
 
 		CDialogEx::OnPaint();
 	}
@@ -181,13 +196,20 @@ HCURSOR CGlimWorkDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
+LRESULT CGlimWorkDlg::USER_MESSAGE_FNC(WPARAM wparam, LPARAM lparam)
+{
+	CirclePrc();
+
+	return 0;
+}
+
 void CGlimWorkDlg::OnLButtonDown(UINT nFlags, CPoint point)
 {
 	// TODO: 여기에 메시지 처리기 코드를 추가 및/또는 기본값을 호출합니다.
 	
 	// UI 반응 범주
 	CRect rect;
-	GetDlgItem(IDC_STATIC)->GetWindowRect(&rect);
+	GetDlgItem(IDC_STATIC_PIC)->GetWindowRect(&rect);
 	ScreenToClient(&rect);
 
 	if (!rect.PtInRect(point))
@@ -226,7 +248,7 @@ void CGlimWorkDlg::OnLButtonUp(UINT nFlags, CPoint point)
 	
 	// UI 반응 범주
 	CRect rect;
-	GetDlgItem(IDC_STATIC)->GetWindowRect(&rect);
+	GetDlgItem(IDC_STATIC_PIC)->GetWindowRect(&rect);
 	ScreenToClient(&rect);
 
 	if (!rect.PtInRect(point))
@@ -251,50 +273,69 @@ void CGlimWorkDlg::OnLButtonUp(UINT nFlags, CPoint point)
 void CGlimWorkDlg::CirclePrc(void)
 {
 	// TODO: 여기에 구현 코드 추가.
-	
+
 	unsigned char* fm = (unsigned char*)m_Image.GetBits();
-
-	// '(전체 줄 - 1) * 한줄의 바이트수'를 빼서 시작 줄의 주소로 변경한다.
-	fm -= m_Image.GetWidth() * (m_Image.GetHeight() - 1) * (8 / 8);
 	memset(fm, 0xFF, m_Image.GetWidth() * m_Image.GetHeight());
-
-	for (int i = 0; i < m_dCircleCnt; i++)
-	{
-		if (m_Circle[i]._Create)
-			m_Circle[i]._Drwa((unsigned char *)m_Image.GetBits(), m_Image.GetPitch());
-	}
 
 	// 세점의 외접원
 	if (CircleMaxCount <= m_dCircleCnt)
 	{
-		unsigned char* fm2 = (unsigned char*)m_Image.GetBits();
-
 		CPoint _Center = GetCenter(m_Circle[0]._ClickPoint, m_Circle[1]._ClickPoint, m_Circle[2]._ClickPoint);
 
 		// 중심점에서 반지름
 		int distance = sqrt(pow(_Center.x - m_Circle[0]._ClickPoint.x, 2) + pow(_Center.y - m_Circle[0]._ClickPoint.y, 2));
 
-		int nStartX = _Center.x - distance;
-		int nStartY = _Center.y - distance;
-		int nCenterX = _Center.x;
-		int nCenterY = _Center.y;
+		// 큰거그리고 작은거 그리자
+		UpdateData(false);
+		int dExternD = distance + (m_dExternBorder / 2);
+		int dInternalD = distance - (m_dExternBorder / 2);
 
-		for (int i = nStartX; i < nStartX + (distance * 2); i++)
+		for (int i = _Center.x - dExternD; i < _Center.x - dExternD + (dExternD * 2); i++)
 		{
-			for (int j = nStartY; j < nStartY + (distance * 2); j++)
+			for (int j = _Center.y - dExternD; j < _Center.y - dExternD + (dExternD * 2); j++)
 			{
 				// 픽셀단위로 원에 해당 여부를 판정
-				if (isInCircle(i, j, nCenterX, nCenterY, distance))
-					fm2[(j * m_Image.GetPitch()) + i] = 0x00;
+				if (isInCircle(i, j, _Center.x, _Center.y, dExternD))
+					// memey validation
+					if (i >= 0 && j >= 0 && i < m_Image.GetWidth() && j < m_Image.GetHeight())
+						fm[(j * m_Image.GetPitch()) + i] = 0x00;
+			}
+		}
+
+		for (int i = _Center.x - dInternalD; i < _Center.x - dInternalD + (dInternalD * 2); i++)
+		{
+			for (int j = _Center.y - dInternalD; j < _Center.y - dInternalD + (dInternalD * 2); j++)
+			{
+				// 픽셀단위로 원에 해당 여부를 판정
+				if (isInCircle(i, j, _Center.x, _Center.y, dInternalD))
+					// memey validation
+					if (i >= 0 && j >= 0 && i < m_Image.GetWidth() && j < m_Image.GetHeight())
+						fm[(j * m_Image.GetPitch()) + i] = 0xFF;
 			}
 		}
 	}
+	
+	for (int i = 0; i < m_dCircleCnt; i++)
+	{
+		if (m_Circle[i]._Create)
+			m_Circle[i]._Drwa((unsigned char *)m_Image.GetBits(), m_Image.GetWidth(), m_Image.GetHeight(), m_Image.GetPitch());
+	}
 
 	OnPaint();
+
+	// info
+	CString str;
+	str.Format(_T("X[0] : %d, Y[0]: %d\r\nX[1] : %d, Y[1]: %d\r\nX[2] : %d, Y[2]: %d\r\n")
+		, m_Circle[0]._ClickPoint.x, m_Circle[0]._ClickPoint.y
+		, m_Circle[1]._ClickPoint.x, m_Circle[1]._ClickPoint.y
+		, m_Circle[2]._ClickPoint.x, m_Circle[2]._ClickPoint.y);
+
+	GetDlgItem(IDC_STATIC_POS_INFO)->SetWindowText(str);		
 }
 
 bool CGlimWorkDlg::isInCircle(int i, int j, int nCenterX, int nCenterY, int nRadius)
 {
+	// 샘플 코드 참조
 	bool bRet = false;
 
 	double dX = i - nCenterX;
@@ -344,3 +385,126 @@ void CGlimWorkDlg::OnMouseMove(UINT nFlags, CPoint point)
 
 	CDialogEx::OnMouseMove(nFlags, point);
 }
+
+
+void CGlimWorkDlg::OnEnChangeEditRadius()
+{
+	// TODO:  RICHEDIT 컨트롤인 경우, 이 컨트롤은
+	// CDialogEx::OnInitDialog() 함수를 재지정 
+	//하고 마스크에 OR 연산하여 설정된 ENM_CHANGE 플래그를 지정하여 CRichEditCtrl().SetEventMask()를 호출하지 않으면
+	// 이 알림 메시지를 보내지 않습니다.
+
+	// TODO:  여기에 컨트롤 알림 처리기 코드를 추가합니다.
+
+	UpdateData(true);
+
+	for (int i = 0; i < CircleMaxCount; i++)
+	{
+		m_Circle[i]._nRadius = m_dRaius;
+	}
+}
+
+
+void CGlimWorkDlg::OnEnChangeEditExternBorder()
+{
+	// TODO:  RICHEDIT 컨트롤인 경우, 이 컨트롤은
+	// CDialogEx::OnInitDialog() 함수를 재지정 
+	//하고 마스크에 OR 연산하여 설정된 ENM_CHANGE 플래그를 지정하여 CRichEditCtrl().SetEventMask()를 호출하지 않으면
+	// 이 알림 메시지를 보내지 않습니다.
+
+	// TODO:  여기에 컨트롤 알림 처리기 코드를 추가합니다.
+
+	UpdateData(true);
+}
+
+
+void CGlimWorkDlg::OnBnClickedButtonReset()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+
+	for (int i = 0; i < CircleMaxCount; i++)
+	{
+		m_Circle[i].Reset();
+	}
+
+	m_dCircleCnt = 0;
+
+	CirclePrc();
+}
+
+
+void CGlimWorkDlg::OnBnClickedButtonRandom()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+
+	// 세점의 외접원
+	if (!(CircleMaxCount <= m_dCircleCnt))
+	{
+		return;
+	}
+
+	for (int i = 0; i < CircleMaxCount; i++)
+	{
+		CPoint point = CPoint(rand() % m_Image.GetWidth(), rand() % m_Image.GetHeight());
+		m_Circle[i].Hold(point);
+	}
+
+	CirclePrc();
+}
+
+
+void CGlimWorkDlg::OnBnClickedButtonRandomThread()
+{
+	// TODO: 여기에 컨트롤 알림 처리기 코드를 추가합니다.
+
+	// 세점의 외접원
+	if (!(CircleMaxCount <= m_dCircleCnt))
+	{
+		return;
+	}
+
+	if (!m_bThreadReady)
+	{
+		return;
+	}
+
+	m_bThreadReady = !m_bThreadReady;
+
+	// 좀 더 신박한 쓰레드 사용방법들이 있었던 것 같은데;;;
+	// 실패 요건은 생략
+	m_pThread = AfxBeginThread(thread_fnc, this, THREAD_PRIORITY_NORMAL, 0, CREATE_SUSPENDED);
+	m_pThread->ResumeThread();
+}
+
+UINT CGlimWorkDlg::thread_fnc(LPVOID _lparam)
+{
+	CGlimWorkDlg *pDlg = (CGlimWorkDlg*)_lparam;
+
+	// 5회 (초당 2회 * 5회 : 총 10회로 이해)
+	for (int j = 0; j < 5; j++)
+	{
+		// 2회
+		for (int i = 0; i < 2; i++)
+		{
+			for (int i = 0; i < CircleMaxCount; i++)
+			{
+				CPoint point = CPoint(rand() % pDlg->m_Image.GetWidth(), rand() % pDlg->m_Image.GetHeight());
+				pDlg->m_Circle[i].Hold(point);
+			}
+
+			pDlg->SendMessage(USER_MESSAGE);
+
+			// 초당 2회, 500ms
+			Sleep(500);
+		}
+
+		Sleep(0);
+	}
+
+	pDlg->m_bThreadReady = true;
+
+	// 드로잉 자체를 쓰레드로 하라는건가???
+
+	return 0;
+}
+
