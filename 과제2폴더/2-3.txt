@@ -1,0 +1,91 @@
+#include <string>
+#include <vector>
+#include <map>
+#include <cmath>
+#include <algorithm>
+
+using namespace std;
+
+static bool comp(pair<int, int>& a, pair<int, int>& b){
+	return a.second > b.second;
+}
+
+int solution(int a, int b, int c, int d) {
+    int answer = 0;
+    map<int,int> m;
+    m[a]++;
+    m[b]++;
+    m[c]++;
+    m[d]++;
+    
+    vector<pair<int, int>> v(m.begin(), m.end());
+	sort(v.begin(), v.end(), comp);
+    
+    bool n3 = false;
+    bool n2 = false;
+    bool n1 = false;
+    bool n0 = false;
+        
+    for (auto it = v.begin(); it != v.end(); ++it) {        
+        switch(it->second)
+        {
+            // 4개 같음
+            case 4:
+                answer = 1111 * it->first;
+                break;
+            // 3개 같음
+            case 3:
+                answer = 10 * it->first;
+                n3 = true;
+                break;
+            // 2개 같음
+            case 2:
+                // 2개 이후 2개
+                if (n2) 
+                {
+                    answer = (answer + it->first) * abs(answer - it->first);
+                    break;
+                }
+                
+                answer = it->first;
+                n2 = true;                
+                break;
+            // 1개 같음
+            case 1:
+                // 3개 이후 1개
+                if (n3)
+                {
+                    answer = (answer + it->first) * (answer + it->first);
+                    break;
+                }
+                
+                // 2개 이후 1개
+                if (n2)
+                {
+                    // 2개 이후 1개 이후 1개
+                    if (n1)
+                    {
+                        answer = answer * - it->first;
+                        break;
+                    }
+                    
+                    answer = - it->first;
+                    n1 = true;
+                    break;
+                }
+                
+                // 1개 이후 1개                
+                if (n1)
+                {                    
+                    answer < it->first ? answer : it->first;
+                    break;
+                }
+                
+                answer = it->first;                
+                n1 = true;
+                break;
+        }
+    }
+    
+    return answer;
+}

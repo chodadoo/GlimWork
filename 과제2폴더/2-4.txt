@@ -1,0 +1,35 @@
+#include <string>
+#include <vector>
+
+using namespace std;
+
+int solution(vector<vector<int>> dots) {
+    int answer = 0;
+    
+    // 뭐여 실수만 되네?
+    double dx = dots[0][0] - dots[1][0];
+    double dy = dots[0][1] - dots[1][1];
+    double dx2 = dots[2][0] - dots[3][0];
+    double dy2 = dots[2][1] - dots[3][1];
+    
+    if (dx/dy == dx2/dy2)
+        return 1;
+    
+    dx = dots[0][0] - dots[2][0];
+    dy = dots[0][1] - dots[2][1];
+    dx2 = dots[1][0] - dots[3][0];
+    dy2 = dots[1][1] - dots[3][1];
+    
+    if (dx/dy == dx2/dy2)
+        return 1;
+    
+    dx = dots[0][0] - dots[3][0];
+    dy = dots[0][1] - dots[3][1];
+    dx2 = dots[1][0] - dots[2][0];
+    dy2 = dots[1][1] - dots[2][1];
+    
+    if (dx/dy == dx2/dy2)
+        return 1;
+    
+    return answer;
+}
